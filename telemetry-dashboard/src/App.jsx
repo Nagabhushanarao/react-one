@@ -2,54 +2,65 @@ import React, { useState } from 'react'
 import './App.css'
 import { INITIAL_EQUIPMENT } from './Data/mockEquipment'
 import { EquipmentCard } from './components/EquipmentCard'
+import { FilterBar } from './components/FilterBar'
 
 function App() {
-  const [equipmentList, setEquipmentList] = useState(INITIAL_EQUIPMENT)
+  // 1. Raw Data State
+  const [equipmentList] = useState(INITIAL_EQUIPMENT)
 
-  // Function to reverse the order of items
-  const handleReverse = () => {
-    setEquipmentList([...equipmentList].reverse())
-  }
+  // 2. Filter Criteria States
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState('ALL')
+
+  // 3. Derived State: Computed during render
+  const filteredEquipment = equipmentList.filter((item) => {
+    const matchesStatus =
+      selectedStatus === 'ALL' || item.status === selectedStatus
+
+    const query = searchQuery.toLowerCase().trim()
+    const matchesSearch =
+      item.name.toLowerCase().includes(query) ||
+      item.location.toLowerCase().includes(query) ||
+      item.id.toLowerCase().includes(query)
+
+    return matchesStatus && matchesSearch
+  })
 
   const handleSelect = (id) => {
     console.log('Equipment selected:', id)
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2>Equipment Telemetry (Key Reconciliation Drill)</h2>
+    <div style={{ padding: '24px', maxWidth: '850px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+      <header style={{ marginBottom: '20px' }}>
+        <h1 style={{ margin: '0 0 6px 0', fontSize: '24px' }}>⚡ Telemetry Operations Hub</h1>
+        <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
+          Real-time facility equipment monitoring & diagnostics
+        </p>
+      </header>
 
-      <div style={{ marginBottom: '16px' }}>
-        <button
-          onClick={handleReverse}
-          style={{
-            padding: '10px 16px',
-            backgroundColor: '#3b82f6',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
-          🔀 Reverse List Order
-        </button>
-      </div>
+      {/* Controlled Filter Component */}
+      <FilterBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedStatus={selectedStatus}
+        onStatusChange={setSelectedStatus}
+        totalCount={equipmentList.length}
+        filteredCount={filteredEquipment.length}
+      />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {equipmentList.map((item, index) => (
-          /* TEST 1: Using key={index} on the outer wrapper */
-          <div
-            key={item.id}
-            style={{ display: 'flex', alignItems: 'center', gap: '12px' }}
-          >
-            <input type="checkbox" style={{ transform: 'scale(1.3)' }} />
-            <div style={{ flex: 1 }}>
-              <EquipmentCard item={item} onSelect={handleSelect} />
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Equipment Grid */}
+      {filteredEquipment.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+          No equipment matches your search or filter.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
+          {filteredEquipment.map((item) => (
+            <EquipmentCard key={item.id} item={item} onSelect={handleSelect} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
