@@ -24,7 +24,10 @@ function App() {
   // 4. Modal Dialog State
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Fetch initial fleet data from Supabase
+  // 5. Live Telemetry Stream Simulation State
+  const [isStreaming, setIsStreaming] = useState(false)
+
+  // Initial fetch from Supabase
   useEffect(() => {
     async function fetchFleet() {
       try {
@@ -44,7 +47,6 @@ function App() {
           setEquipmentList(normalized)
           setIsCloudSynced(true)
         } else {
-          // Table exists but is currently empty: keep INITIAL_EQUIPMENT and mark connected
           setIsCloudSynced(true)
         }
       } catch (err) {
@@ -58,7 +60,38 @@ function App() {
     fetchFleet()
   }, [])
 
-  // 5. Derived State: Filtered list
+  // Live Stream Simulation: Fluctuates telemetry readings periodically
+  useEffect(() => {
+    if (!isStreaming) return
+
+    const streamInterval = setInterval(() => {
+      setEquipmentList((prevList) =>
+        prevList.map((item) => {
+          if (item.status === 'OFFLINE') return item
+
+          // Add minor realistic jitter (-1.5 to +1.5)
+          const jitter = (Math.random() * 3 - 1.5).toFixed(1)
+          const newTemp = Math.max(20, +(item.metrics.temperature + parseFloat(jitter)).toFixed(1))
+          const newLoad = Math.min(100, Math.max(10, Math.round(item.metrics.load + (Math.random() * 6 - 3))))
+
+          return {
+            ...item,
+            metrics: {
+              ...item.metrics,
+              temperature: newTemp,
+              load: newLoad,
+            },
+            lastUpdated: new Date().toLocaleTimeString(),
+          }
+        })
+      )
+    }, 2500)
+
+    // Critical Cleanup: Always clear interval to avoid memory leaks and ghost updates
+    return () => clearInterval(streamInterval)
+  }, [isStreaming])
+
+  // 6. Derived State: Filtered list
   const filteredEquipment = equipmentList.filter((item) => {
     const matchesStatus =
       selectedStatus === 'ALL' || item.status === selectedStatus
@@ -72,10 +105,10 @@ function App() {
     return matchesStatus && matchesSearch
   })
 
-  // 6. Derived State: Scope selection to the active filtered set
+  // 7. Derived State: Selected equipment
   const selectedEquipment = filteredEquipment.find((item) => item.id === selectedEquipmentId)
 
-  // 7. Optimistic Update: Updates UI immediately, syncs to Supabase in background
+  // 8. Optimistic Update (Drawer)
   const handleUpdateStatus = async (id, newStatus) => {
     setEquipmentList((prevList) =>
       prevList.map((item) =>
@@ -88,15 +121,13 @@ function App() {
         .from('equipment')
         .update({ status: newStatus })
         .eq('id', id)
-      if (error) {
-        console.error('Supabase update failed:', error.message)
-      }
+      if (error) console.error('Supabase update failed:', error.message)
     } catch (err) {
       console.error('Network error during status update:', err)
     }
   }
 
-  // 8. Optimistic Addition: Prepends unit to UI immediately, syncs to Supabase in background
+  // 9. Optimistic Addition (Modal)
   const handleAddEquipment = async (newUnit) => {
     setEquipmentList((prevList) => [newUnit, ...prevList])
     setIsModalOpen(false)
@@ -111,9 +142,7 @@ function App() {
         last_updated: newUnit.lastUpdated,
       }
       const { error } = await supabase.from('equipment').insert([payload])
-      if (error) {
-        console.error('Supabase insert failed:', error.message)
-      }
+      if (error) console.error('Supabase insert failed:', error.message)
     } catch (err) {
       console.error('Network error during insert:', err)
     }
@@ -121,7 +150,7 @@ function App() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '850px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <h1 style={{ margin: '0 0 6px 0', fontSize: '24px' }}>⚡ Telemetry Operations Hub</h1>
@@ -143,20 +172,42 @@ function App() {
             Real-time facility equipment monitoring & diagnostics
           </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          style={{
-            backgroundColor: '#3b82f6',
-            color: '#fff',
-            border: 'none',
-            padding: '10px 16px',
-            borderRadius: '6px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          + Add Unit
-        </button>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {/* Live Streaming Toggle */}
+          <button
+            onClick={() => setIsStreaming((prev) => !prev)}
+            style={{
+              backgroundColor: isStreaming ? '#dc2626' : '#059669',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {isStreaming ? '⏹ Stop Stream' : '▶ Start Live Stream'}
+          </button>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: '#fff',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            + Add Unit
+          </button>
+        </div>
       </header>
 
       {/* Controlled Filter Component */}
